@@ -14,6 +14,7 @@ def calc_summary_stats(df, mask=None, summary_cols=None, annual_factor=1,
         "excess_kurtosis": lambda x: x.kurtosis() - 3,
         "kurtosis": lambda x: x.kurtosis(),
         "skewness": lambda x: x.skew(),
+        "min": lambda x: x.min() * annual_factor,
     }
     
     # var/cvar
@@ -21,18 +22,23 @@ def calc_summary_stats(df, mask=None, summary_cols=None, annual_factor=1,
         summary_funcs[f"{q*100:.0f}% VaR"] = lambda x: x.quantile(q)
         summary_funcs[f"{q*100:.0f}% cVaR"] = lambda x: x[x <= x.quantile(q)].mean()
     
-    # # Max Drawdown
-    # df_aum = (df+1).cumprod()
-    # draw_downs = (df_aum.cummax() - df_aum) / df_aum.cummax()
-    # df_summary.loc["Max Drawdown"] = draw_downs.max()
 
     # Filter cols
-    wrong_summary_cols = [c for c in summary_cols if c not in summary_funcs]
-    if len(wrong_summary_cols) > 0:
-        raise ValueError(f"Invalid summary_cols: {wrong_summary_cols}")
+    # wrong_summary_cols = [c for c in summary_cols if c not in summary_funcs]
+    # if len(wrong_summary_cols) > 0:
+    #     raise ValueError(f"Invalid summary_cols: {wrong_summary_cols}")
     if summary_cols is not None:
         summary_funcs = {k: v 
-                         for k, v in summary_funcs.items() if k in summary_cols}
+                         for k, v in summary_funcs.items() 
+                         if k in summary_cols and k not in ["max_drawdown"]
+                         }
         
     df_summary = df.apply(lambda x: pd.Series({k: f(x) for k, f in summary_funcs.items()}))
+    
+    if "max_drawdown" in summary_cols:
+        # Max Drawdown
+        df_aum = (df+1).cumprod()
+        draw_downs = (df_aum.cummax() - df_aum) / df_aum.cummax()
+        df_summary.loc["max_drawdown"] = draw_downs.max()
+    
     return df_summary
